@@ -2,6 +2,7 @@
 
 use tokio_amqp::*;
 use lapin::{
+    Consumer,
     Connection, 
     ConnectionProperties, 
     options::{
@@ -62,7 +63,7 @@ async fn main() -> Result<(), Error> {
     let mq_channel = mq_conn.create_channel().await?;
 
     // setup the rabbitmq consumer
-    let mut mq_consumer = mq_channel.basic_consume(
+    let mq_consumer = mq_channel.basic_consume(
         "hello", 
         "my_consumer", 
         BasicConsumeOptions::default(), 
@@ -70,19 +71,7 @@ async fn main() -> Result<(), Error> {
     ).await?;
 
     // consume messages from rabbitmq
-    let mq_handle = tokio::spawn(async move {
-        while let Some(delivery) = mq_consumer.next().await {
-            let (channel, delivery) = match delivery {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("unable to get delivery from rabbitmq consumer: {}", e);
-                    return;
-                },
-            };
-
-            handle_delivery(channel, delivery).await;
-        }
-    });
+    let mq_handle = tokio::spawn(consume_messages(mq_consumer));
 
     // start our rabbitmq consumer and the prometheus exporter
     let _ = tokio::join!(mq_handle, warp_handle);
@@ -91,7 +80,7 @@ async fn main() -> Result<(), Error> {
 }
 
 #[instrument]
-async fn serve_metrics() -> std::result::Result<impl warp::Reply, Infallible> {
+async fn serve_metrics() -> Result<impl warp::Reply, Infallible> {
     let encoder = TextEncoder::new();
     let mut buf = std::vec::Vec::new();
     let metric_families = prometheus::gather();
@@ -99,6 +88,21 @@ async fn serve_metrics() -> std::result::Result<impl warp::Reply, Infallible> {
     let cloned = &buf.clone();
     let text = from_utf8(cloned).expect("bad");
     Ok(text.to_owned())
+}
+
+#[instrument]
+async fn consume_messages(mut mq_consumer: Consumer) {
+    while let Some(delivery) = mq_consumer.next().await {
+        let (channel, delivery) = match delivery {
+            Ok(v) => v,
+            Err(e) => {
+                error!("unable to get delivery from rabbitmq consumer: {}", e);
+                return;
+            },
+        };
+
+        handle_delivery(channel, delivery).await;
+    }
 }
 
 #[instrument]
