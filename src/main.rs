@@ -16,12 +16,15 @@ use lapin::{
 use futures_util::stream::StreamExt;
 use tracing::{info, error, Level, instrument};
 use tracing_subscriber::FmtSubscriber;
-use std::str::from_utf8;
+use std::{
+    str::from_utf8,
+    net::SocketAddr,
+    convert::Infallible,
+    vec::Vec,
+};
 use prometheus::{self, IntCounter, register_int_counter, TextEncoder, Encoder};
 use lazy_static::lazy_static;
-use std::net::SocketAddr;
 use warp::Filter;
-use std::convert::Infallible;
 
 // initialize the prometheus metrics
 lazy_static! {
@@ -82,11 +85,11 @@ async fn main() -> Result<(), Error> {
 #[instrument]
 async fn serve_metrics() -> Result<impl warp::Reply, Infallible> {
     let encoder = TextEncoder::new();
-    let mut buf = std::vec::Vec::new();
+    let mut buf = Vec::new();
     let metric_families = prometheus::gather();
-    encoder.encode(&metric_families, &mut buf).expect("bad");
+    encoder.encode(&metric_families, &mut buf).expect("encoding prometheus metrics as text");
     let cloned = &buf.clone();
-    let text = from_utf8(cloned).expect("bad");
+    let text = from_utf8(cloned).expect("converting bytes to utf8");
     Ok(text.to_owned())
 }
 
