@@ -8,6 +8,7 @@ use lapin::{
     options::{
         BasicConsumeOptions,
         BasicAckOptions,
+        QueueDeclareOptions,
     }, 
     types::FieldTable,
     Channel,
@@ -61,14 +62,24 @@ async fn main() -> Result<(), Error> {
     let mq_addr = std::env::var("AMQP_ADDR").unwrap_or_else(|_| "amqp://127.0.0.1:5672/%2f".into());
     info!(address = &mq_addr[..], "connecting to rabbitmq");
 
+    // get the queue name
+    let queue_name = std::env::var("AMQP_QUEUE").expect("queue name is required");
+
     // connect to rabbitmq
     let mq_conn = Connection::connect(&mq_addr, ConnectionProperties::default().with_tokio()).await?; 
-    let mq_channel = mq_conn.create_channel().await?;
+    // declare the rabbitmq queue
+    let mq_declare_channel = mq_conn.create_channel().await?;
+    let _ = mq_declare_channel.queue_declare(
+        &queue_name,
+        QueueDeclareOptions::default(),
+        FieldTable::default(),
+    ).await?;
 
     // setup the rabbitmq consumer
+    let mq_channel = mq_conn.create_channel().await?;
     let mq_consumer = mq_channel.basic_consume(
-        "hello", 
-        "my_consumer", 
+        &queue_name, 
+        "", 
         BasicConsumeOptions::default(), 
         FieldTable::default(),
     ).await?;
@@ -93,7 +104,6 @@ async fn serve_metrics() -> Result<impl warp::Reply, Infallible> {
     Ok(text.to_owned())
 }
 
-#[instrument]
 async fn consume_messages(mut mq_consumer: Consumer) {
     while let Some(delivery) = mq_consumer.next().await {
         let (channel, delivery) = match delivery {
@@ -108,7 +118,6 @@ async fn consume_messages(mut mq_consumer: Consumer) {
     }
 }
 
-#[instrument]
 async fn handle_delivery(channel: Channel, delivery: Delivery) {
     MESSAGES_RECEIVED_COUNTER.inc();
 
