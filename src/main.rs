@@ -1,5 +1,9 @@
 #![feature(async_closure)]
 
+mod error;
+
+use error::Error;
+
 use tokio_amqp::*;
 use lapin::{
     Consumer,
@@ -15,8 +19,8 @@ use lapin::{
     message::Delivery
 };
 use futures_util::stream::StreamExt;
-use tracing::{info, error, Level, instrument};
-use tracing_subscriber::FmtSubscriber;
+use tracing::{info, error};
+use tracing_subscriber::{FmtSubscriber, EnvFilter};
 use std::{
     str::from_utf8,
     net::SocketAddr,
@@ -42,9 +46,13 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
+
     // setup our logging and tracing
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_env_filter(EnvFilter::from_default_env())
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)
@@ -139,48 +147,3 @@ async fn handle_delivery(channel: Channel, delivery: Delivery) {
     MESSAGES_ACKED_COUNTER.inc();
 }
 
-#[derive(Debug)]
-enum Error {
-    IoError(std::io::Error),
-    Utf8Error(std::str::Utf8Error),
-    PrometheusError(Box<prometheus::Error>),
-    WarpError(warp::Error),
-    LapinError(lapin::Error),
-    JoinError(tokio::task::JoinError),
-}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Error {
-        Error::IoError(e)
-    }
-}
-
-impl From<std::str::Utf8Error> for Error {
-    fn from(e: std::str::Utf8Error) -> Error {
-        Error::Utf8Error(e)
-    }
-}
-
-impl From<prometheus::Error> for Error {
-    fn from(e: prometheus::Error) -> Error {
-        Error::PrometheusError(Box::new(e))
-    }
-}
-
-impl From<warp::Error> for Error {
-    fn from(e: warp::Error) -> Error {
-        Error::WarpError(e)
-    }
-}
-
-impl From<lapin::Error> for Error {
-    fn from(e: lapin::Error) -> Error {
-        Error::LapinError(e)
-    }
-}
-
-impl From<tokio::task::JoinError> for Error {
-    fn from(e: tokio::task::JoinError) -> Error {
-        Error::JoinError(e)
-    }
-}
