@@ -46,11 +46,11 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // setup our logging and tracing
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info");
     }
 
-    // setup our logging and tracing
     let subscriber = FmtSubscriber::builder()
         .with_env_filter(EnvFilter::from_default_env())
         .finish();
