@@ -93,7 +93,6 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-#[instrument]
 async fn serve_metrics() -> Result<impl warp::Reply, Infallible> {
     let encoder = TextEncoder::new();
     let mut buf = Vec::new();
