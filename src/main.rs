@@ -75,6 +75,7 @@ async fn main() -> Result<(), Error> {
 
     // connect to rabbitmq
     let mq_conn = Connection::connect(&mq_addr, ConnectionProperties::default().with_tokio()).await?; 
+
     // declare the rabbitmq queue
     let mq_declare_channel = mq_conn.create_channel().await?;
     let _ = mq_declare_channel.queue_declare(
