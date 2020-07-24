@@ -107,8 +107,7 @@ async fn serve_metrics() -> Result<impl warp::Reply, Infallible> {
     let mut buf = Vec::new();
     let metric_families = prometheus::gather();
     encoder.encode(&metric_families, &mut buf).expect("encoding prometheus metrics as text");
-    let cloned = &buf.clone();
-    let text = from_utf8(cloned).expect("converting bytes to utf8");
+    let text = from_utf8(&buf).expect("converting bytes to utf8");
     Ok(text.to_owned())
 }
 
